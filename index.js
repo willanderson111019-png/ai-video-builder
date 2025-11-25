@@ -23,8 +23,13 @@ app.post('/render', async (req, res) => {
   const tmpDir = '/tmp'; // works on Render / Railway etc.
 
   try {
-    // ✅ CHANGE 1: expect `audio` (with .data) instead of `audioUrl`
-    const { clips = [], audio, captions = [], output = {} } = req.body;
+    // 👇 IMPORTANT: expect audio.data (base64), NOT audioUrl
+    const {
+      clips = [],
+      audio = {},
+      captions = [],
+      output = {},
+    } = req.body;
 
     if (!clips.length) {
       return res.status(400).json({ error: 'No clips provided' });
@@ -40,7 +45,7 @@ app.post('/render', async (req, res) => {
     const audioPath = path.join(tmpDir, 'audio.mp3');
     const outPath = path.join(tmpDir, `out-${Date.now()}.mp4`);
 
-    // Helper to download a file (still used for the video clip)
+    // Helper to download a file
     async function downloadFile(url, dest) {
       const response = await fetch(url);
       if (!response.ok) {
@@ -55,10 +60,10 @@ app.post('/render', async (req, res) => {
       });
     }
 
-    // ✅ CHANGE 2: download only the video via URL
+    // Download main clip
     await downloadFile(mainClip.url || mainClip.link, videoPath);
 
-    // ✅ CHANGE 3: write the audio from base64 into audioPath
+    // Write audio from base64 into a file
     const audioBuffer = Buffer.from(audio.data, 'base64');
     fs.writeFileSync(audioPath, audioBuffer);
 
@@ -66,11 +71,7 @@ app.post('/render', async (req, res) => {
     const width = output.width || 1080;
     const height = output.height || 1920;
 
-    // Build the video:
-    // - take videoPath
-    // - swap in audioPath
-    // - scale to vertical
-    // - stop when the shorter of video/audio ends (-shortest)
+    // Build the video
     await new Promise((resolve, reject) => {
       ffmpeg(videoPath)
         .input(audioPath)
