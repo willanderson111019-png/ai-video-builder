@@ -23,13 +23,14 @@ app.post('/render', async (req, res) => {
   const tmpDir = '/tmp'; // works on Render / Railway etc.
 
   try {
-    const { clips = [], audioUrl, captions = [], output = {} } = req.body;
+    // ✅ CHANGE 1: expect `audio` (with .data) instead of `audioUrl`
+    const { clips = [], audio, captions = [], output = {} } = req.body;
 
     if (!clips.length) {
       return res.status(400).json({ error: 'No clips provided' });
     }
-    if (!audioUrl) {
-      return res.status(400).json({ error: 'audioUrl is required' });
+    if (!audio || !audio.data) {
+      return res.status(400).json({ error: 'audio.data (base64) is required' });
     }
 
     // For v1: just use the first clip
@@ -39,7 +40,7 @@ app.post('/render', async (req, res) => {
     const audioPath = path.join(tmpDir, 'audio.mp3');
     const outPath = path.join(tmpDir, `out-${Date.now()}.mp4`);
 
-    // Helper to download a file
+    // Helper to download a file (still used for the video clip)
     async function downloadFile(url, dest) {
       const response = await fetch(url);
       if (!response.ok) {
@@ -54,9 +55,12 @@ app.post('/render', async (req, res) => {
       });
     }
 
-    // Download main clip + audio
+    // ✅ CHANGE 2: download only the video via URL
     await downloadFile(mainClip.url || mainClip.link, videoPath);
-    await downloadFile(audioUrl, audioPath);
+
+    // ✅ CHANGE 3: write the audio from base64 into audioPath
+    const audioBuffer = Buffer.from(audio.data, 'base64');
+    fs.writeFileSync(audioPath, audioBuffer);
 
     // Output resolution (default: 1080x1920 vertical)
     const width = output.width || 1080;
